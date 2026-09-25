@@ -24,6 +24,7 @@ ENROLLMENT_NUMBER = "25012251210003"
 FUEL_PRESETS = {
     "Petrol": 44_000.0,
     "Diesel": 42_500.0,
+    "CNG": 47_000.0,
     "Custom fuel": 40_000.0,
 }
 
@@ -163,6 +164,16 @@ st.markdown(
         margin: .5rem 0 1rem;
     }
 
+    .engine-mode-strip {
+        background: #eaf3f7;
+        border: 1px solid #bfd5df;
+        border-left: 5px solid var(--steel);
+        border-radius: 4px;
+        color: #173f50;
+        padding: .8rem 1rem;
+        margin: -.35rem 0 1rem;
+    }
+
     .formula-box {
         background: #fff;
         border: 1px solid var(--line);
@@ -235,11 +246,63 @@ def metric_card(
     )
 
 
-def render_engine_animation(rpm: float, fuel_name: str) -> None:
+def render_engine_animation(rpm: float, fuel_name: str, ignition_system: str) -> None:
     # A true four-stroke cycle completes in two crankshaft revolutions. The
     # visual rate follows RPM, but is slowed enough for a student to observe
     # valve timing and each stroke clearly.
     duration = max(1.8, min(5.2, 4500.0 / rpm))
+    is_compression_ignition = ignition_system == "Compression ignition"
+
+    if is_compression_ignition:
+        engine_mode_label = f"COMPRESSION-IGNITION · {fuel_name.upper()}"
+        hardware_label = "FUEL INJECTOR"
+        intake_charge_label = "AIR ONLY"
+        intake_phase_text = "Only fresh air enters"
+        power_phase_text = "Injection + self-ignition"
+        engine_aria_label = "Compression-ignition diesel four-stroke engine with a fuel injector and no spark plug"
+        ignition_start_deg = 344
+        ignition_end_deg = 405
+        ignition_hardware_svg = """
+          <g id="ignitionHardware" aria-label="Fuel injector">
+            <rect x="397" y="45" width="16" height="35" rx="4" fill="#dce6ea" stroke="#6f8792" stroke-width="2"/>
+            <path d="M397 53 H413 M397 61 H413 M397 69 H413" stroke="#56717d" stroke-width="2"/>
+            <path d="M400 80 L402 96 H408 L410 80 Z" fill="#b7c8cf" stroke="#607985" stroke-width="2"/>
+            <circle cx="405" cy="96" r="3" fill="#f0b04d"/>
+          </g>
+        """
+        ignition_event_svg = """
+          <g id="ignitionEvent" opacity="0" aria-label="Diesel fuel injection spray">
+            <path d="M404 98 L382 133" class="fuel-spray"/>
+            <path d="M405 98 L405 140" class="fuel-spray"/>
+            <path d="M406 98 L428 133" class="fuel-spray"/>
+            <circle cx="384" cy="133" r="2.8" class="fuel-drop"/>
+            <circle cx="405" cy="140" r="2.8" class="fuel-drop"/>
+            <circle cx="426" cy="133" r="2.8" class="fuel-drop"/>
+          </g>
+        """
+    else:
+        engine_mode_label = f"SPARK-IGNITION · {fuel_name.upper()}"
+        hardware_label = "SPARK PLUG"
+        intake_charge_label = f"AIR + {fuel_name.upper()}"
+        intake_phase_text = "Air–fuel mixture enters"
+        power_phase_text = "Spark ignition + expansion"
+        engine_aria_label = f"Spark-ignition {fuel_name} four-stroke engine with a spark plug"
+        ignition_start_deg = 345
+        ignition_end_deg = 382
+        ignition_hardware_svg = """
+          <g id="ignitionHardware" aria-label="Spark plug">
+            <path d="M397 47 H414 L411 91 H400 Z" fill="#e7ecee" stroke="#7f939c" stroke-width="2"/>
+            <path d="M400 55 H411 M399 63 H412 M399 71 H411" stroke="#647985" stroke-width="2"/>
+          </g>
+        """
+        ignition_event_svg = """
+          <g id="ignitionEvent" opacity="0" aria-label="Spark ignition event">
+            <line x1="405" y1="91" x2="396" y2="105" class="spark-ray"/>
+            <line x1="406" y1="92" x2="415" y2="106" class="spark-ray"/>
+            <line x1="405" y1="91" x2="405" y2="109" class="spark-ray"/>
+          </g>
+        """
+
     html = f"""
     <!doctype html>
     <html lang="en">
@@ -265,7 +328,7 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
             display:flex; align-items:center; justify-content:space-between;
             padding:0 15px; background:rgba(4,15,22,.72); border-bottom:1px solid #294958;
         }}
-        .tag {{ color:#f4f8f9; font-size:12px; font-weight:760; letter-spacing:.1em; }}
+        .tag {{ color:#f4f8f9; font-size:12px; font-weight:760; letter-spacing:.1em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:72%; }}
         .tag .led {{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; background:#46d39a; box-shadow:0 0 10px #46d39a; animation:pulse 1.1s infinite; }}
         .readout {{ display:flex; align-items:center; gap:10px; }}
         .rpm {{ color:#ffad73; font:750 12px ui-monospace,monospace; }}
@@ -286,9 +349,11 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
         .intake-dot {{ fill:#49d3e2; animation:intake-flow 1.05s linear infinite; }}
         .exhaust-dot {{ fill:#ff9a55; animation:exhaust-flow 1.05s linear infinite; }}
         .d2 {{ animation-delay:-.35s; }} .d3 {{ animation-delay:-.7s; }}
-        #intakeCloud,#exhaustCloud,#spark,#flame {{ transition:opacity .1s linear; }}
+        #intakeCloud,#exhaustCloud,#ignitionEvent,#flame {{ transition:opacity .1s linear; }}
         #flame {{ filter:url(#glow); transform-origin:405px 124px; animation:flame-pulse .16s ease-in-out infinite alternate; }}
         .spark-ray {{ stroke:#fff09c; stroke-width:2.4; stroke-linecap:round; }}
+        .fuel-spray {{ fill:none; stroke:#ffc45e; stroke-width:3; stroke-linecap:round; stroke-dasharray:5 4; animation:fuel-spray .18s linear infinite; }}
+        .fuel-drop {{ fill:#ffc45e; filter:url(#glow); }}
         .valve-head {{ fill:#c8d3d8; stroke:#607985; stroke-width:2; }}
         .phase-strip {{
             position:absolute; z-index:5; left:12px; right:12px; bottom:12px;
@@ -306,6 +371,7 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
         @keyframes intake-flow {{ from {{ transform:translateX(-8px); opacity:0; }} 25% {{ opacity:1; }} to {{ transform:translateX(104px); opacity:0; }} }}
         @keyframes exhaust-flow {{ from {{ transform:translateX(0); opacity:0; }} 25% {{ opacity:1; }} to {{ transform:translateX(112px); opacity:0; }} }}
         @keyframes flame-pulse {{ from {{ transform:scale(.88); }} to {{ transform:scale(1.08); }} }}
+        @keyframes fuel-spray {{ to {{ stroke-dashoffset:-18; }} }}
         @keyframes pulse {{ 50% {{ opacity:.35; box-shadow:0 0 3px #46d39a; }} }}
         @media (max-width:560px) {{
             .machine {{ height:355px; }} .tag {{ font-size:9px; }} .rpm {{ font-size:10px; }}
@@ -318,10 +384,10 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
       <div class="machine">
         <div class="grid"></div>
         <div class="topbar">
-          <div class="tag"><span class="led"></span>LIVE 4-STROKE DIGITAL TWIN · {fuel_name.upper()}</div>
+          <div class="tag"><span class="led"></span>LIVE 4-STROKE · {engine_mode_label}</div>
           <div class="readout"><span class="rpm">{rpm:,.0f} RPM</span><button id="pauseButton" class="pause" type="button">PAUSE</button></div>
         </div>
-        <svg viewBox="0 0 840 330" role="img" aria-label="Interactive four-stroke single-cylinder engine animation">
+        <svg viewBox="0 0 840 330" role="img" aria-label="{engine_aria_label}">
           <defs>
             <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#edf2f4"/><stop offset=".45" stop-color="#97aab4"/><stop offset="1" stop-color="#dce5e8"/></linearGradient>
             <linearGradient id="pistonMetal" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#f0f4f5"/><stop offset=".52" stop-color="#aab9c0"/><stop offset="1" stop-color="#718792"/></linearGradient>
@@ -335,7 +401,7 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
           <path d="M55 113 H250 Q285 113 326 139" class="port-inner"/>
           <path d="M483 139 Q525 113 565 113 H650" class="port"/>
           <path d="M483 139 Q525 113 565 113 H650" class="port-inner"/>
-          <text x="58" y="88" class="label">AIR + {fuel_name.upper()}</text>
+          <text x="58" y="88" class="label">{intake_charge_label}</text>
           <text x="548" y="88" class="label">EXHAUST GAS</text>
           <g id="intakeCloud" opacity="0">
             <circle cx="77" cy="113" r="4" class="intake-dot"/><circle cx="104" cy="113" r="4" class="intake-dot d2"/><circle cx="132" cy="113" r="4" class="intake-dot d3"/>
@@ -362,13 +428,14 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
           </g>
           <text x="329" y="39" class="small">INTAKE</text><text x="448" y="39" class="small">EXHAUST</text>
 
-          <!-- Spark plug and combustion -->
-          <path d="M397 47 H414 L411 91 H400 Z" fill="#e7ecee" stroke="#7f939c" stroke-width="2"/>
-          <path d="M400 55 H411 M399 63 H412 M399 71 H411" stroke="#647985" stroke-width="2"/>
-          <g id="spark" opacity="0">
-            <line x1="405" y1="91" x2="396" y2="105" class="spark-ray"/><line x1="406" y1="92" x2="415" y2="106" class="spark-ray"/><line x1="405" y1="91" x2="405" y2="109" class="spark-ray"/>
-          </g>
+          <!-- Ignition hardware changes correctly with the selected engine mode. -->
+          {ignition_hardware_svg}
+          {ignition_event_svg}
           <g id="flame" opacity="0"><path d="M405 94 C430 111 441 137 426 163 C421 144 411 137 405 122 C397 143 387 151 389 170 C363 149 367 116 405 94 Z" fill="url(#fire)"/></g>
+
+          <!-- Selected ignition system -->
+          <rect x="540" y="12" width="282" height="30" rx="5" fill="#0b202b" stroke="#315464"/>
+          <text x="553" y="31" class="data-title">IGNITION HARDWARE · {hardware_label}</text>
 
           <!-- Piston, connecting rod and crank mechanism -->
           <g id="piston">
@@ -396,9 +463,9 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
         </svg>
 
         <div class="phase-strip">
-          <div class="phase" data-phase="0"><b>1 · INTAKE</b><span>Air–fuel enters</span></div>
+          <div class="phase" data-phase="0"><b>1 · INTAKE</b><span>{intake_phase_text}</span></div>
           <div class="phase" data-phase="1"><b>2 · COMPRESSION</b><span>Both valves closed</span></div>
-          <div class="phase power" data-phase="2"><b>3 · POWER</b><span>Spark + expansion</span></div>
+          <div class="phase power" data-phase="2"><b>3 · POWER</b><span>{power_phase_text}</span></div>
           <div class="phase" data-phase="3"><b>4 · EXHAUST</b><span>Burnt gas leaves</span></div>
         </div>
       </div>
@@ -415,7 +482,7 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
         const exhaustValve = document.getElementById('exhaustValve');
         const intakeCloud = document.getElementById('intakeCloud');
         const exhaustCloud = document.getElementById('exhaustCloud');
-        const spark = document.getElementById('spark');
+        const ignitionEvent = document.getElementById('ignitionEvent');
         const flame = document.getElementById('flame');
         const strokeValue = document.getElementById('strokeValue');
         const angleValue = document.getElementById('angleValue');
@@ -458,7 +525,7 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
           const intakeLift = phase === 0 ? Math.sin(phasePosition * Math.PI) * 13 : 0;
           const exhaustLift = phase === 3 ? Math.sin(phasePosition * Math.PI) * 13 : 0;
           const combustion = phase === 2 ? Math.pow(Math.max(0, Math.sin((1 - phasePosition) * Math.PI / 2)), .5) : 0;
-          const sparkOn = cycleDeg >= 345 && cycleDeg <= 382;
+          const ignitionOn = cycleDeg >= {ignition_start_deg} && cycleDeg <= {ignition_end_deg};
 
           piston.setAttribute('transform', `translate(0 ${{pistonTop.toFixed(2)}})`);
           rod.setAttribute('x1', '405'); rod.setAttribute('y1', sliderY.toFixed(2));
@@ -475,7 +542,7 @@ def render_engine_animation(rpm: float, fuel_name: str) -> None:
           exhaustValve.setAttribute('transform', `translate(0 ${{exhaustLift.toFixed(2)}})`);
           intakeCloud.style.opacity = phase === 0 ? '1' : '0';
           exhaustCloud.style.opacity = phase === 3 ? '1' : '0';
-          spark.style.opacity = sparkOn ? '1' : '0';
+          ignitionEvent.style.opacity = ignitionOn ? '1' : '0';
           flame.style.opacity = combustion.toFixed(2);
 
           strokeValue.textContent = names[phase];
@@ -661,6 +728,21 @@ with st.sidebar:
 
     st.markdown("### Fuel data")
     fuel_name = st.selectbox("Fuel type", list(FUEL_PRESETS), index=0)
+    if fuel_name == "Diesel":
+        ignition_system = "Compression ignition"
+        st.caption("Diesel mode: air-only intake + fuel injector + compression self-ignition. No spark plug.")
+    elif fuel_name == "Petrol":
+        ignition_system = "Spark ignition"
+        st.caption("Petrol mode: air–fuel intake + spark-plug ignition.")
+    elif fuel_name == "CNG":
+        ignition_system = "Spark ignition"
+        st.caption("CNG mode: air–CNG intake + spark-plug ignition.")
+    else:
+        ignition_system = st.selectbox(
+            "Ignition system",
+            ["Spark ignition", "Compression ignition"],
+            help="Choose the engine cycle used with the custom fuel.",
+        )
     fuel_flow = st.number_input(
         "Fuel mass-flow rate (kg/h)",
         min_value=0.001,
@@ -744,6 +826,20 @@ else:
 
 st.markdown(f'<div class="status-strip"><strong>Operating assessment:</strong> {status_text}</div>', unsafe_allow_html=True)
 
+if ignition_system == "Compression ignition":
+    mode_text = (
+        "<strong>Compression-ignition mode:</strong> The intake stroke admits air only. "
+        "A fuel injector sprays fuel near the end of compression, where it self-ignites "
+        "because of the high air temperature. No spark plug is used."
+    )
+else:
+    charge_name = "air–CNG mixture" if fuel_name == "CNG" else "air–fuel mixture"
+    mode_text = (
+        f"<strong>Spark-ignition mode:</strong> The intake stroke admits an {charge_name}. "
+        "A spark plug ignites the compressed charge near the end of compression."
+    )
+st.markdown(f'<div class="engine-mode-strip">{mode_text}</div>', unsafe_allow_html=True)
+
 
 tab_performance, tab_calculations, tab_theory = st.tabs(
     ["Performance dashboard", "Formula & verification", "Theory & viva"]
@@ -753,7 +849,7 @@ tab_performance, tab_calculations, tab_theory = st.tabs(
 with tab_performance:
     visual_column, gauge_column = st.columns([1.45, 1], gap="large")
     with visual_column:
-        render_engine_animation(inputs.rpm, fuel_name)
+        render_engine_animation(inputs.rpm, fuel_name, ignition_system)
     with gauge_column:
         render_efficiency_gauge(result.brake_thermal_efficiency_percent)
 
@@ -894,6 +990,10 @@ with tab_theory:
             st.write("The engine uses less fuel to produce the same brake-energy output, so fuel economy is better.")
         with st.expander("Why can thermal efficiency not exceed 100%?"):
             st.write("The shaft output cannot be greater than the chemical energy entering with the fuel; energy is also lost through exhaust, cooling, and friction.")
+        with st.expander("Why does a diesel engine not use a spark plug?"):
+            st.write(
+                "A diesel engine compresses air to a high pressure and temperature. Fuel is then sprayed by an injector near the end of compression and self-ignites in the hot air. A petrol engine instead uses a spark plug to ignite its compressed air–fuel mixture."
+            )
 
     st.warning(
         "This educational calculator assumes steady operation and consistent measured data. "
