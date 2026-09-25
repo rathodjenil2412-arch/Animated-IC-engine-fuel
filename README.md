@@ -20,7 +20,16 @@ The app accepts dynamometer torque, engine RPM, fuel mass-flow rate, fuel calori
 - Mechanical efficiency
 - Heat and other energy losses
 
-It also includes a moving piston/crankshaft illustration, animated efficiency gauge, energy-balance donut chart, performance graph, formula substitution, input validation, a CSV download, and viva notes.
+It also includes a moving piston/crankshaft illustration, fuel-specific ignition hardware, animated efficiency gauge, energy-balance donut chart, performance graph, formula substitution, input validation, a CSV download, and viva notes.
+
+## Technically correct engine animation
+
+- **Petrol mode:** air–fuel mixture enters the cylinder and a spark plug initiates combustion.
+- **Diesel mode:** only air enters during intake; a fuel injector sprays diesel near the end of compression and the fuel self-ignites. No spark plug is shown or used.
+- **CNG mode:** an air–CNG mixture enters the cylinder and a spark plug initiates combustion. The editable CNG calorific-value preset is 47,000 kJ/kg.
+- **Custom fuel mode:** the user can choose either spark ignition or compression ignition.
+
+The animation automatically changes the intake label, ignition hardware, ignition event and four-stroke descriptions when the fuel or ignition system changes.
 
 ## Engineering formulas
 
@@ -56,6 +65,7 @@ requirements.txt                   Deployment dependencies
 MANUAL_TEST_CASE.md                Manual verification
 tests/test_engine_calculations.py  Regression tests
 tests/test_streamlit_app.py         Streamlit smoke test
+tests/test_engine_animation.py      Fuel-specific animation tests
 .streamlit/config.toml             App theme
 ```
 
